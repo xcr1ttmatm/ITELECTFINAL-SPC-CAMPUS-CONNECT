@@ -2,6 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import supabase from '../lib/supabase';
 import toast, { Toaster } from 'react-hot-toast';
+import ccsLogo from '../logos/ccs-logo.png';
+import coeLogo from '../logos/coe-logo.png';
+import cocLogo from '../logos/coc-logo.png';
+import cedLogo from '../logos/ced-logo.png';
+import casLogo from '../logos/cas-logo.png';
+import cbaaLogo from '../logos/cbaa-logo.png';
+import spcLogo from '../logos/spc-logo.jpg';
 
 export default function Archive() {
   const navigate = useNavigate();
@@ -13,12 +20,12 @@ export default function Archive() {
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
 
   const departments = [
-    { code: 'CCS', name: 'College of Computer Studies', logo: '/src/logos/ccs-logo.png' },
-    { code: 'COE', name: 'College of Engineering', logo: '/src/logos/coe-logo.png' },
-    { code: 'COC', name: 'College of Criminology', logo: '/src/logos/coc-logo.png' },
-    { code: 'CED', name: 'College of Education', logo: '/src/logos/ced-logo.png' },
-    { code: 'CAS', name: 'College of Arts and Sciences', logo: '/src/logos/cas-logo.png' },
-    { code: 'CBAA', name: 'College of Business Administration and Accountancy', logo: '/src/logos/cba-logo.png' }
+    { code: 'CCS', name: 'College of Computer Studies', logo: ccsLogo },
+    { code: 'COE', name: 'College of Engineering', logo: coeLogo },
+    { code: 'COC', name: 'College of Criminology', logo: cocLogo },
+    { code: 'CED', name: 'College of Education', logo: cedLogo },
+    { code: 'CAS', name: 'College of Arts and Sciences', logo: casLogo },
+    { code: 'CBAA', name: 'College of Business Administration and Accountancy', logo: cbaaLogo }
   ];
 
   // Check authentication and determine user type
@@ -221,7 +228,7 @@ export default function Archive() {
           <div className="flex items-center justify-between">
             <div className="flex items-center">
               <img
-                src="/src/logos/spc-logo.jpg"
+                src={spcLogo}
                 alt="SPC Logo"
                 className="h-8 sm:h-10 w-8 sm:w-10 rounded-full object-contain"
               />
@@ -367,7 +374,7 @@ export default function Archive() {
                         className="h-6 w-6 sm:h-8 sm:w-8 rounded-full object-contain bg-white p-0.5 sm:p-1"
                         onError={(e) => {
                           e.target.onerror = null;
-                          e.target.src = '/src/logos/spc-logo.jpg';
+                          e.target.src = spcLogo;
                         }}
                       />
                       <div className="ml-2 sm:ml-3 flex-1 min-w-0">
