@@ -37,8 +37,5 @@ export default defineConfig({
   // 👇 ADD THIS
   server: {
     hmr: process.env.NODE_ENV === 'production' ? false : true,
-  },
-  build: {
-    outDir: 'dist',
   }
 })
