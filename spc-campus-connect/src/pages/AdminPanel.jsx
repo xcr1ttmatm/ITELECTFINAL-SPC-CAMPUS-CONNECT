@@ -16,7 +16,9 @@ export default function AdminPanel() {
     title: '',
     content: '',
     type: 'announcement',
-    event_date: ''
+    event_date: '',
+    auto_archive: false,
+    archive_at: ''
   });
 
   // Check authentication and verify admin role
@@ -70,8 +72,11 @@ export default function AdminPanel() {
   }, [userProfile]);
 
   const fetchPosts = async () => {
-    try {
-      const { data, error } = await supabase
+  try {
+    // Trigger auto-archive check
+    await supabase.rpc('auto_archive_posts');
+
+    const { data, error } = await supabase
         .from('posts')
         .select('*')
         .eq('author_id', userProfile.id)
@@ -109,28 +114,36 @@ export default function AdminPanel() {
       return;
     }
 
+    // Validate auto-archive
+    if (formData.auto_archive && !formData.archive_at) {
+      toast.error('Please set an archive date and time');
+      return;
+    }
+
     const loadingToast = toast.loading('Creating post...');
 
     try {
-      const { error } = await supabase
-        .from('posts')
-        .insert([
-          {
-            title: formData.title,
-            content: formData.content,
-            type: formData.type,
-            department: userProfile.department,
-            author_id: userProfile.id,
-            event_date: formData.type === 'event' ? formData.event_date : null,
-            status: 'active'
-          }
-        ]);
+    const { error } = await supabase
+      .from('posts')
+      .insert([
+        {
+          title: formData.title,
+          content: formData.content,
+          type: formData.type,
+          department: userProfile.department,
+          author_id: userProfile.id,
+          event_date: formData.type === 'event' ? new Date(formData.event_date).toISOString() : null,
+          status: 'active',
+          auto_archive: formData.auto_archive,
+          archive_at: formData.auto_archive ? new Date(formData.archive_at).toISOString() : null
+        }
+      ]);
 
       if (error) throw error;
 
       toast.success('Post created successfully!', { id: loadingToast });
       setShowCreateModal(false);
-      setFormData({ title: '', content: '', type: 'announcement', event_date: '' });
+      setFormData({ title: '', content: '', type: 'announcement', event_date: '', auto_archive: false, archive_at: '' });
       fetchPosts();
     } catch (error) {
       toast.error(error.message, { id: loadingToast });
@@ -148,25 +161,33 @@ export default function AdminPanel() {
       return;
     }
 
+    // Validate auto-archive
+    if (formData.auto_archive && !formData.archive_at) {
+      toast.error('Please set an archive date and time');
+      return;
+    }
+
     const loadingToast = toast.loading('Updating post...');
 
     try {
-      const { error } = await supabase
-        .from('posts')
-        .update({
-          title: formData.title,
-          content: formData.content,
-          type: formData.type,
-          event_date: formData.type === 'event' ? formData.event_date : null
-        })
-        .eq('id', editingPost.id);
+    const { error } = await supabase
+      .from('posts')
+      .update({
+        title: formData.title,
+        content: formData.content,
+        type: formData.type,
+        event_date: formData.type === 'event' ? new Date(formData.event_date).toISOString() : null,
+        auto_archive: formData.auto_archive,
+        archive_at: formData.auto_archive ? new Date(formData.archive_at).toISOString() : null
+      })
+      .eq('id', editingPost.id);
 
       if (error) throw error;
 
       toast.success('Post updated successfully!', { id: loadingToast });
       setShowEditModal(false);
       setEditingPost(null);
-      setFormData({ title: '', content: '', type: 'announcement', event_date: '' });
+      setFormData({ title: '', content: '', type: 'announcement', event_date: '', auto_archive: false, archive_at: '' });
       fetchPosts();
     } catch (error) {
       toast.error(error.message, { id: loadingToast });
@@ -223,7 +244,9 @@ export default function AdminPanel() {
       title: post.title,
       content: post.content,
       type: post.type,
-      event_date: post.event_date ? new Date(post.event_date).toISOString().slice(0, 16) : ''
+      event_date: post.event_date ? new Date(post.event_date).toISOString().slice(0, 16) : '',
+      auto_archive: post.auto_archive || false,
+      archive_at: post.archive_at ? new Date(post.archive_at).toISOString().slice(0, 16) : ''
     });
     setShowEditModal(true);
   };
@@ -235,7 +258,8 @@ export default function AdminPanel() {
       day: 'numeric', 
       year: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
+      timeZone: 'Asia/Manila'
     });
   };
 
@@ -362,6 +386,12 @@ export default function AdminPanel() {
                         }`}>
                           {post.status}
                         </span>
+
+                        {post.auto_archive && (
+                          <span className="px-3 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-800">
+                            ⏰ Auto-Archive
+                          </span>
+                        )}
                       </div>
                       <h3 className="text-lg font-semibold text-gray-900 mb-1">{post.title}</h3>
                       <p className="text-gray-600 text-sm mb-2 line-clamp-2">{post.content}</p>
@@ -369,6 +399,15 @@ export default function AdminPanel() {
                       {post.type === 'event' && post.event_date && (
                         <p className="text-sm text-gray-500 mb-2">
                           📅 Event Date: {formatDate(post.event_date)}
+                        </p>
+                      )}
+
+                      {post.auto_archive && post.archive_at && (
+                        <p className="text-sm text-gray-500 mb-2">
+                          {post.status === 'archived' 
+                            ? `🗄️ Auto-archived on: ${formatDate(post.archive_at)}`
+                            : `⏰ Will auto-archive on: ${formatDate(post.archive_at)}`
+                          }
                         </p>
                       )}
 
@@ -434,7 +473,7 @@ export default function AdminPanel() {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
           onClick={() => {
             setShowCreateModal(false);
-            setFormData({ title: '', content: '', type: 'announcement', event_date: '' });
+            setFormData({ title: '', content: '', type: 'announcement', event_date: '', auto_archive: false, archive_at: '' });
           }}
         >
           <div
@@ -491,13 +530,49 @@ export default function AdminPanel() {
                   />
                 </div>
               )}
+
+              {/* AUTO-ARCHIVE SECTION */}
+              <div className="border-t pt-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700">Auto-Archive</label>
+                    <p className="text-xs text-gray-500">Automatically archive this post at a scheduled time</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, auto_archive: !formData.auto_archive, archive_at: '' })}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      formData.auto_archive ? 'bg-red-900' : 'bg-gray-300'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        formData.auto_archive ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {formData.auto_archive && (
+                  <div className="mt-3">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Archive Date & Time</label>
+                    <input
+                      type="datetime-local"
+                      value={formData.archive_at}
+                      onChange={(e) => setFormData({ ...formData, archive_at: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-900"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">The post will automatically move to archive at this time</p>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="p-6 border-t flex justify-end space-x-3">
               <button
                 onClick={() => {
                   setShowCreateModal(false);
-                  setFormData({ title: '', content: '', type: 'announcement', event_date: '' });
+                  setFormData({ title: '', content: '', type: 'announcement', event_date: '', auto_archive: false, archive_at: '' });
                 }}
                 className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
               >
@@ -521,7 +596,7 @@ export default function AdminPanel() {
           onClick={() => {
             setShowEditModal(false);
             setEditingPost(null);
-            setFormData({ title: '', content: '', type: 'announcement', event_date: '' });
+            setFormData({ title: '', content: '', type: 'announcement', event_date: '', auto_archive: false, archive_at: '' });
           }}
         >
           <div
@@ -578,6 +653,42 @@ export default function AdminPanel() {
                   />
                 </div>
               )}
+
+              {/* AUTO-ARCHIVE SECTION */}
+              <div className="border-t pt-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700">Auto-Archive</label>
+                    <p className="text-xs text-gray-500">Automatically archive this post at a scheduled time</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, auto_archive: !formData.auto_archive, archive_at: '' })}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      formData.auto_archive ? 'bg-red-900' : 'bg-gray-300'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        formData.auto_archive ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {formData.auto_archive && (
+                  <div className="mt-3">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Archive Date & Time</label>
+                    <input
+                      type="datetime-local"
+                      value={formData.archive_at}
+                      onChange={(e) => setFormData({ ...formData, archive_at: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-900"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">The post will automatically move to archive at this time</p>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="p-6 border-t flex justify-end space-x-3">
@@ -585,7 +696,7 @@ export default function AdminPanel() {
                 onClick={() => {
                   setShowEditModal(false);
                   setEditingPost(null);
-                  setFormData({ title: '', content: '', type: 'announcement', event_date: '' });
+                  setFormData({ title: '', content: '', type: 'announcement', event_date: '', auto_archive: false, archive_at: '' });
                 }}
                 className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
               >
